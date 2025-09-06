@@ -93,11 +93,11 @@ export default function Connect() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="token">API Token</Label>
+              <Label htmlFor="token">Anon Key</Label>
               <Input
                 id="token"
                 type="password"
-                placeholder="Your experimental access token"
+                placeholder="Your anon public key (eyJhbGciOiJIUzI1NiIs...)"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 className="bg-secondary/50"
