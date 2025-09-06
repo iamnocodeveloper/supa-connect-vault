@@ -1,4 +1,5 @@
 import { storage, ConnectionData } from './storage';
+import { parseSupabaseSchema, getTableColumns } from './supabase-helpers';
 
 export class SupabaseClient {
   private url: string = '';
@@ -68,28 +69,44 @@ export class SupabaseClient {
     if (!this.isConnected()) throw new Error('Not connected');
 
     try {
+      // Get OpenAPI schema which contains table information
       const response = await fetch(`${this.url}/rest/v1/`, {
-        headers: this.getHeaders()
+        headers: {
+          ...this.getHeaders(),
+          'Accept': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch tables: ${response.status}`);
+        throw new Error(`Failed to fetch schema: ${response.status}`);
       }
 
-      // Get schema information
-      const schemaResponse = await fetch(`${this.url}/rest/v1/?select=*`, {
-        headers: this.getHeaders()
-      });
-
-      // For now, return some mock tables - in real implementation, 
-      // you'd parse the OpenAPI schema from the response
-      return [
-        { name: 'users', schema: 'public' },
-        { name: 'posts', schema: 'public' },
-        { name: 'profiles', schema: 'public' }
-      ];
+      const schema = await response.json();
+      return parseSupabaseSchema(schema);
     } catch (error) {
       throw new Error(`Failed to fetch tables: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async getTableColumns(tableName: string) {
+    if (!this.isConnected()) throw new Error('Not connected');
+
+    try {
+      const response = await fetch(`${this.url}/rest/v1/`, {
+        headers: {
+          ...this.getHeaders(),
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schema: ${response.status}`);
+      }
+
+      const schema = await response.json();
+      return getTableColumns(schema, tableName);
+    } catch (error) {
+      throw new Error(`Failed to fetch table columns: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -116,40 +133,45 @@ export class SupabaseClient {
   async executeQuery(query: string) {
     if (!this.isConnected()) throw new Error('Not connected');
 
-    try {
-      // For SQL queries, we'd use the PostgREST RPC endpoint
-      // This is a simplified implementation
-      const response = await fetch(`${this.url}/rpc/execute_sql`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ query })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Query failed: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      throw new Error(`Query execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // Note: Direct SQL execution requires service_role key or custom RPC function
+    // For security, most Supabase projects don't allow arbitrary SQL execution with anon key
+    throw new Error('Direct SQL execution requires service_role key. Please use specific API endpoints for data access.');
   }
 
   async getProjectStats() {
     if (!this.isConnected()) throw new Error('Not connected');
 
-    // Mock data for demonstration - in real implementation,
-    // you'd fetch actual metrics from Supabase
-    return {
-      restRequests: 1539,
-      authRequests: 44,
-      storageRequests: 647,
-      realtimeRequests: 0,
-      totalUsers: 1752,
-      activeUsers: 234,
-      dataSize: '2.4 GB',
-      bandwidth: '156 MB'
-    };
+    try {
+      // Get basic project information
+      const tables = await this.getTables();
+      
+      // Get auth users count if auth table is accessible
+      let totalUsers = 0;
+      try {
+        const usersResponse = await fetch(`${this.url}/auth/v1/admin/users`, {
+          headers: this.getHeaders()
+        });
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          totalUsers = usersData.users ? usersData.users.length : 0;
+        }
+      } catch {
+        // Auth endpoint might not be accessible with current token
+      }
+
+      return {
+        restRequests: 'N/A',
+        authRequests: 'N/A', 
+        storageRequests: 'N/A',
+        realtimeRequests: 'N/A',
+        totalUsers: totalUsers,
+        activeUsers: 'N/A',
+        dataSize: `${tables.length} tables`,
+        bandwidth: 'N/A'
+      };
+    } catch (error) {
+      throw new Error(`Failed to fetch project stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 

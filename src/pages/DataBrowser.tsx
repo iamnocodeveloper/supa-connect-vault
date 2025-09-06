@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MobileLayout } from '@/components/layout/MobileLayout';
+import { EmptyState } from '@/components/EmptyState';
 import { supabaseClient } from '@/lib/supabase-client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,11 +34,17 @@ export default function DataBrowser() {
         setTables(tableList);
         if (tableList.length > 0) {
           setSelectedTable(tableList[0].name);
+        } else {
+          toast({
+            title: "No tables found",
+            description: "Your Supabase project doesn't have any tables yet. Create some tables first.",
+            variant: "default"
+          });
         }
       } catch (error) {
         toast({
           title: "Error loading tables",
-          description: "Failed to fetch table list",
+          description: "Failed to fetch table list. Check your API key permissions.",
           variant: "destructive"
         });
       } finally {
@@ -105,6 +112,23 @@ export default function DataBrowser() {
     );
   }
 
+  // Show empty state if no tables
+  if (tables.length === 0) {
+    return (
+      <MobileLayout>
+        <div className="min-h-screen p-6 flex items-center justify-center">
+          <EmptyState
+            icon={<Table className="w-8 h-8 text-muted-foreground" />}
+            title="No tables found"
+            description="Your Supabase project doesn't have any tables yet. Create some tables in your Supabase dashboard to get started."
+            actionLabel="Open Supabase Dashboard"
+            onAction={() => window.open('https://supabase.com/dashboard', '_blank')}
+          />
+        </div>
+      </MobileLayout>
+    );
+  }
+
   return (
     <MobileLayout>
       <div className="min-h-screen">
@@ -131,7 +155,7 @@ export default function DataBrowser() {
                 <SelectContent>
                   {tables.map((table) => (
                     <SelectItem key={table.name} value={table.name}>
-                      {table.name}
+                      {table.name} ({table.columns || 0} columns)
                     </SelectItem>
                   ))}
                 </SelectContent>

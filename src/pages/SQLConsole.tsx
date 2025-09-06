@@ -59,14 +59,11 @@ export default function SQLConsole() {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Query execution failed');
-      // Mock successful result for demo
-      const mockResults = [
-        { id: 1, name: 'John Doe', email: 'john@example.com', created_at: '2024-01-01T00:00:00Z' },
-        { id: 2, name: 'Jane Smith', email: 'jane@example.com', created_at: '2024-01-02T00:00:00Z' },
-        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', created_at: '2024-01-03T00:00:00Z' },
-      ];
-      setResults(mockResults);
-      setError('');
+      toast({
+        title: "Query Error",
+        description: err instanceof Error ? err.message : 'Query execution failed',
+        variant: "destructive"
+      });
     } finally {
       setIsExecuting(false);
     }
