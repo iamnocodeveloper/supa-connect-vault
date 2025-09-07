@@ -1,6 +1,5 @@
 import { storage, ConnectionData } from './storage';
 import { parseSupabaseSchema, getTableColumns } from './supabase-helpers';
-import { supabase } from '@/integrations/supabase/client';
 
 export class SupabaseClient {
   private url: string = '';
@@ -20,23 +19,84 @@ export class SupabaseClient {
     if (!token) {
       return { success: false, error: 'Token is required' };
     }
+
     try {
-      const { data, error } = await supabase.functions.invoke('resolve-project', {
-        body: { token },
+      // Use CORS proxy to avoid CORS issues with Supabase Management API
+      const corsProxy = 'https://api.allorigins.win/raw?url=';
+      const apiUrl = 'https://api.supabase.com/v1/projects';
+      const proxyUrl = `${corsProxy}${encodeURIComponent(apiUrl)}`;
+      
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
       });
-      if (error) {
-        throw new Error(error.message || 'Failed to resolve project');
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Failed to fetch projects: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
       }
-      if (!data?.success || !data?.project?.ref || !data?.project?.anonKey) {
-        throw new Error(data?.error || 'Could not resolve project/anon key');
+
+      const projects = await response.json();
+      
+      if (!Array.isArray(projects) || projects.length === 0) {
+        throw new Error('No projects found for this token');
       }
-      const apiUrl = `https://${data.project.ref}.supabase.co`;
-      this.url = apiUrl;
-      this.token = data.project.anonKey;
-      await storage.setConnection({ url: apiUrl, token: this.token });
+
+      // Get the first active project or fallback to the first project
+      const activeProject = projects.find((p: any) => (p?.status || '').toLowerCase() === 'active') || projects[0];
+      const projectRef = activeProject?.ref || activeProject?.project_ref;
+      
+      if (!projectRef) {
+        throw new Error('Could not find project reference');
+      }
+
+      // Get project API keys
+      const keysUrl = `https://api.supabase.com/v1/projects/${projectRef}/api-keys`;
+      const keysProxyUrl = `${corsProxy}${encodeURIComponent(keysUrl)}`;
+      
+      const keysResponse = await fetch(keysProxyUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!keysResponse.ok) {
+        throw new Error(`Failed to fetch API keys: ${keysResponse.status} ${keysResponse.statusText}`);
+      }
+
+      const keysData = await keysResponse.json();
+      let anonKey = null;
+
+      // Extract anon key from the response
+      if (Array.isArray(keysData)) {
+        const anonKeyObj = keysData.find((k: any) => (k?.name || '').toLowerCase() === 'anon');
+        anonKey = anonKeyObj?.api_key;
+      } else if (keysData?.anon) {
+        anonKey = keysData.anon;
+      }
+
+      if (!anonKey) {
+        throw new Error('Could not retrieve anon key for project');
+      }
+
+      // Set up the connection with the project URL and anon key
+      const projectUrl = `https://${projectRef}.supabase.co`;
+      this.url = projectUrl;
+      this.token = anonKey;
+
+      // Store credentials
+      await storage.setConnection({ url: projectUrl, token: anonKey });
+      
       return { success: true };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Connection failed' };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Connection failed' 
+      };
     }
   }
 
