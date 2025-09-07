@@ -1,5 +1,6 @@
 import { storage, ConnectionData } from './storage';
 import { parseSupabaseSchema, getTableColumns } from './supabase-helpers';
+import { supabase } from '@/integrations/supabase/client';
 
 export class SupabaseClient {
   private url: string = '';
@@ -16,41 +17,26 @@ export class SupabaseClient {
   }
 
   async connect(url: string, token: string) {
-    // For experimental tokens, we don't need a URL - the token contains project info
     if (!token) {
-      return { 
-        success: false, 
-        error: 'Token is required' 
-      };
+      return { success: false, error: 'Token is required' };
     }
-
     try {
-      // For experimental tokens, we test connection differently
-      // We'll use the Supabase management API endpoint
-      const testUrl = url || 'https://api.supabase.com';
-      const response = await fetch(`${testUrl}/v1/projects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const { data, error } = await supabase.functions.invoke('resolve-project', {
+        body: { token },
       });
-
-      if (!response.ok) {
-        throw new Error(`Connection failed: ${response.status} ${response.statusText}`);
+      if (error) {
+        throw new Error(error.message || 'Failed to resolve project');
       }
-
-      this.url = url || '';
-      this.token = token;
-
-      // Store credentials
-      await storage.setConnection({ url: this.url, token });
-      
+      if (!data?.success || !data?.project?.ref || !data?.project?.anonKey) {
+        throw new Error(data?.error || 'Could not resolve project/anon key');
+      }
+      const apiUrl = `https://${data.project.ref}.supabase.co`;
+      this.url = apiUrl;
+      this.token = data.project.anonKey;
+      await storage.setConnection({ url: apiUrl, token: this.token });
       return { success: true };
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Connection failed' 
-      };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Connection failed' };
     }
   }
 
