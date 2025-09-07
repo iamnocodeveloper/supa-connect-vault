@@ -16,15 +16,22 @@ export class SupabaseClient {
   }
 
   async connect(url: string, token: string) {
-    // Clean URL - remove trailing slash and ensure https
-    const cleanUrl = url.replace(/\/$/, '').replace(/^http:/, 'https:');
-    
+    // For experimental tokens, we don't need a URL - the token contains project info
+    if (!token) {
+      return { 
+        success: false, 
+        error: 'Token is required' 
+      };
+    }
+
     try {
-      // Test connection
-      const response = await fetch(`${cleanUrl}/rest/v1/`, {
+      // For experimental tokens, we test connection differently
+      // We'll use the Supabase management API endpoint
+      const testUrl = url || 'https://api.supabase.com';
+      const response = await fetch(`${testUrl}/v1/projects`, {
         headers: {
-          'apikey': token,
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
@@ -32,11 +39,11 @@ export class SupabaseClient {
         throw new Error(`Connection failed: ${response.status} ${response.statusText}`);
       }
 
-      this.url = cleanUrl;
+      this.url = url || '';
       this.token = token;
 
       // Store credentials
-      await storage.setConnection({ url: cleanUrl, token });
+      await storage.setConnection({ url: this.url, token });
       
       return { success: true };
     } catch (error) {

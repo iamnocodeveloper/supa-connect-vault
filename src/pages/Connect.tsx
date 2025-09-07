@@ -11,7 +11,6 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Connect() {
-  const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
@@ -20,8 +19,8 @@ export default function Connect() {
   const { toast } = useToast();
 
   const handleConnect = async () => {
-    if (!url || !token) {
-      setError('Please enter both URL and token');
+    if (!token) {
+      setError('Please enter your experimental token');
       return;
     }
 
@@ -29,7 +28,7 @@ export default function Connect() {
     setError('');
 
     try {
-      const result = await supabaseClient.connect(url, token);
+      const result = await supabaseClient.connect('', token);
       
       if (result.success) {
         setIsConnected(true);
@@ -53,7 +52,6 @@ export default function Connect() {
 
   const handleClearCredentials = async () => {
     await supabaseClient.disconnect();
-    setUrl('');
     setToken('');
     setIsConnected(false);
     setError('');
@@ -80,18 +78,6 @@ export default function Connect() {
 
           {/* Connection Form */}
           <Card className="glass-card p-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="url">Supabase Project URL</Label>
-              <Input
-                id="url"
-                type="url"
-                placeholder="https://your-project.supabase.co"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="bg-secondary/50"
-              />
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="token">Experimental Access Token</Label>
               <Input
