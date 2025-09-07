@@ -12,13 +12,16 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function Connect() {
   const [token, setToken] = useState('');
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [showProjectSelection, setShowProjectSelection] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleConnect = async () => {
+  const handleFetchProjects = async () => {
     if (!token) {
       setError('Please enter your experimental token');
       return;
@@ -28,13 +31,38 @@ export default function Connect() {
     setError('');
 
     try {
-      const result = await supabaseClient.connect('', token);
+      const result = await supabaseClient.fetchProjects(token);
+      
+      if (result.success && result.projects) {
+        setProjects(result.projects);
+        setShowProjectSelection(true);
+        toast({
+          title: "Projects loaded!",
+          description: `Found ${result.projects.length} project(s) in your account.`,
+        });
+      } else {
+        setError(result.error || 'Failed to load projects');
+      }
+    } catch (err) {
+      setError('Unexpected error occurred');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleConnectToProject = async (project: any) => {
+    setIsConnecting(true);
+    setError('');
+    setSelectedProject(project);
+
+    try {
+      const result = await supabaseClient.connectToProject(token, project);
       
       if (result.success) {
         setIsConnected(true);
         toast({
           title: "Connected successfully!",
-          description: "Your Supabase project is now connected.",
+          description: `Connected to ${project.name}.`,
         });
         
         setTimeout(() => {
@@ -53,6 +81,9 @@ export default function Connect() {
   const handleClearCredentials = async () => {
     await supabaseClient.disconnect();
     setToken('');
+    setProjects([]);
+    setSelectedProject(null);
+    setShowProjectSelection(false);
     setIsConnected(false);
     setError('');
     toast({
@@ -106,25 +137,68 @@ export default function Connect() {
               </Alert>
             )}
 
-            <Button 
-              onClick={handleConnect}
-              disabled={isConnecting || isConnected}
-              className="w-full btn-hero"
-            >
-              {isConnecting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connecting...
-                </>
-              ) : isConnected ? (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Connected
-                </>
-              ) : (
-                'Connect to Supabase'
-              )}
-            </Button>
+            {!showProjectSelection ? (
+              <Button 
+                onClick={handleFetchProjects}
+                disabled={isConnecting || isConnected || !token}
+                className="w-full btn-hero"
+              >
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading Projects...
+                  </>
+                ) : isConnected ? (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Connected
+                  </>
+                ) : (
+                  'Load Projects'
+                )}
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm">Select a Project:</h3>
+                {projects.map((project) => (
+                  <Card 
+                    key={project.ref} 
+                    className={`p-3 cursor-pointer transition-colors hover:bg-secondary/50 ${
+                      selectedProject?.ref === project.ref ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => handleConnectToProject(project)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-sm">{project.name}</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {project.status} • {project.ref}
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        {selectedProject?.ref === project.ref && isConnecting && (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        )}
+                        {isConnected && selectedProject?.ref === project.ref && (
+                          <CheckCircle className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowProjectSelection(false);
+                    setProjects([]);
+                    setSelectedProject(null);
+                  }}
+                  className="w-full"
+                >
+                  ← Back to Token Input
+                </Button>
+              </div>
+            )}
 
             <Button 
               variant="outline" 

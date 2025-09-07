@@ -15,11 +15,7 @@ export class SupabaseClient {
     return false;
   }
 
-  async connect(url: string, token: string) {
-    if (!token) {
-      return { success: false, error: 'Token is required' };
-    }
-
+  async fetchProjects(token: string) {
     try {
       // Use CORS proxy to avoid CORS issues with Supabase Management API
       const corsProxy = 'https://api.allorigins.win/raw?url=';
@@ -41,19 +37,29 @@ export class SupabaseClient {
 
       const projects = await response.json();
       
-      if (!Array.isArray(projects) || projects.length === 0) {
-        throw new Error('No projects found for this token');
+      if (!Array.isArray(projects)) {
+        throw new Error('Invalid response format');
       }
 
-      // Get the first active project or fallback to the first project
-      const activeProject = projects.find((p: any) => (p?.status || '').toLowerCase() === 'active') || projects[0];
-      const projectRef = activeProject?.ref || activeProject?.project_ref;
+      return { success: true, projects };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to fetch projects' 
+      };
+    }
+  }
+
+  async connectToProject(token: string, project: any) {
+    try {
+      const projectRef = project?.ref || project?.project_ref;
       
       if (!projectRef) {
         throw new Error('Could not find project reference');
       }
 
-      // Get project API keys
+      // Use CORS proxy for API keys request
+      const corsProxy = 'https://api.allorigins.win/raw?url=';
       const keysUrl = `https://api.supabase.com/v1/projects/${projectRef}/api-keys`;
       const keysProxyUrl = `${corsProxy}${encodeURIComponent(keysUrl)}`;
       
@@ -98,6 +104,17 @@ export class SupabaseClient {
         error: error instanceof Error ? error.message : 'Connection failed' 
       };
     }
+  }
+
+  async connect(url: string, token: string) {
+    // Legacy method - auto-select first project
+    const projectsResult = await this.fetchProjects(token);
+    if (!projectsResult.success || !projectsResult.projects?.length) {
+      return projectsResult;
+    }
+
+    const firstProject = projectsResult.projects[0];
+    return this.connectToProject(token, firstProject);
   }
 
   async disconnect() {
