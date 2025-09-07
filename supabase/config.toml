@@ -1,1 +1,4 @@
 project_id = "gquiokiouillptsknylj"
+
+[functions.resolve-project]
+verify_jwt = false

@@ -1,5 +1,7 @@
 import { storage, ConnectionData } from './storage';
 import { parseSupabaseSchema, getTableColumns } from './supabase-helpers';
+import { supabase } from '@/integrations/supabase/client';
+
 
 export class SupabaseClient {
   private url: string = '';
@@ -17,97 +19,57 @@ export class SupabaseClient {
 
   async fetchProjects(token: string) {
     try {
-      // Call Supabase Management API directly
-      const response = await fetch('https://api.supabase.com/v1/projects', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
+      const { data, error } = await supabase.functions.invoke('resolve-project', {
+        body: { token, action: 'list' }
       });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(`Failed to fetch projects: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
-      }
-
-      const projects = await response.json();
-      
-      if (!Array.isArray(projects)) {
-        throw new Error('Invalid response format');
-      }
-
+      if (error) throw new Error(error.message || 'Failed to fetch projects');
+      if (!data?.success) throw new Error(data?.error || 'Failed to fetch projects');
+      const projects = Array.isArray(data.projects) ? data.projects : [];
       return { success: true, projects };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch projects' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch projects'
       };
     }
   }
+
 
   async connectToProject(token: string, project: any) {
     try {
       const projectRef = project?.ref || project?.project_ref;
-      
-      if (!projectRef) {
-        throw new Error('Could not find project reference');
-      }
+      if (!projectRef) throw new Error('Could not find project reference');
 
-      // Call Supabase Management API directly for API keys
-      const keysResponse = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/api-keys`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
+      const { data, error } = await supabase.functions.invoke('resolve-project', {
+        body: { token, action: 'keys', ref: projectRef }
       });
+      if (error) throw new Error(error.message || 'Failed to fetch API keys');
+      if (!data?.success || !data?.project?.anonKey) throw new Error(data?.error || 'Could not retrieve anon key');
 
-      if (!keysResponse.ok) {
-        throw new Error(`Failed to fetch API keys: ${keysResponse.status} ${keysResponse.statusText}`);
-      }
-
-      const keysData = await keysResponse.json();
-      let anonKey = null;
-
-      // Extract anon key from the response
-      if (Array.isArray(keysData)) {
-        const anonKeyObj = keysData.find((k: any) => (k?.name || '').toLowerCase() === 'anon');
-        anonKey = anonKeyObj?.api_key;
-      } else if (keysData?.anon) {
-        anonKey = keysData.anon;
-      }
-
-      if (!anonKey) {
-        throw new Error('Could not retrieve anon key for project');
-      }
-
-      // Set up the connection with the project URL and anon key
       const projectUrl = `https://${projectRef}.supabase.co`;
       this.url = projectUrl;
-      this.token = anonKey;
-
-      // Store credentials
-      await storage.setConnection({ url: projectUrl, token: anonKey });
-      
+      this.token = data.project.anonKey;
+      await storage.setConnection({ url: projectUrl, token: this.token });
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Connection failed' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Connection failed'
       };
     }
   }
+
 
   async connect(url: string, token: string) {
     // Legacy method - auto-select first project
     const projectsResult = await this.fetchProjects(token);
     if (!projectsResult.success || !projectsResult.projects?.length) {
-      return projectsResult;
+      return projectsResult as any;
     }
-
     const firstProject = projectsResult.projects[0];
     return this.connectToProject(token, firstProject);
   }
+
 
   async disconnect() {
     await storage.clearConnection();
