@@ -17,12 +17,8 @@ export class SupabaseClient {
 
   async fetchProjects(token: string) {
     try {
-      // Use CORS proxy to avoid CORS issues with Supabase Management API
-      const corsProxy = 'https://api.allorigins.win/raw?url=';
-      const apiUrl = 'https://api.supabase.com/v1/projects';
-      const proxyUrl = `${corsProxy}${encodeURIComponent(apiUrl)}`;
-      
-      const response = await fetch(proxyUrl, {
+      // Call Supabase Management API directly
+      const response = await fetch('https://api.supabase.com/v1/projects', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -58,12 +54,8 @@ export class SupabaseClient {
         throw new Error('Could not find project reference');
       }
 
-      // Use CORS proxy for API keys request
-      const corsProxy = 'https://api.allorigins.win/raw?url=';
-      const keysUrl = `https://api.supabase.com/v1/projects/${projectRef}/api-keys`;
-      const keysProxyUrl = `${corsProxy}${encodeURIComponent(keysUrl)}`;
-      
-      const keysResponse = await fetch(keysProxyUrl, {
+      // Call Supabase Management API directly for API keys
+      const keysResponse = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/api-keys`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
