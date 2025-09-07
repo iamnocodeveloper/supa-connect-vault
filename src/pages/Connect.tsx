@@ -96,8 +96,8 @@ export default function Connect() {
     <MobileLayout showNavigation={false}>
       <div className="min-h-screen p-6 flex flex-col justify-center">
         <div className="max-w-md mx-auto w-full space-y-6">
-          {/* Header */}
-          <div className="text-center space-y-2">
+            {/* Header */}
+            <div className="text-center space-y-2">
             <div className="w-16 h-16 mx-auto glass-card rounded-2xl flex items-center justify-center">
               <Database className="w-8 h-8 text-primary" />
             </div>
