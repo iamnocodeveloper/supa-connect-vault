@@ -93,11 +93,11 @@ export default function Connect() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="token">Anon Key</Label>
+              <Label htmlFor="token">Experimental Access Token</Label>
               <Input
                 id="token"
                 type="password"
-                placeholder="Your anon public key (eyJhbGciOiJIUzI1NiIs...)"
+                placeholder="Your experimental token (sbp_...)"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 className="bg-secondary/50"
@@ -171,9 +171,9 @@ export default function Connect() {
             <Button 
               variant="link" 
               className="text-primary text-sm"
-              onClick={() => window.open('https://supabase.com/docs/guides/api', '_blank')}
+              onClick={() => window.open('https://supabase.com/dashboard/account/tokens', '_blank')}
             >
-              How to get your Access Token →
+              Create your Experimental Token →
             </Button>
           </div>
         </div>
